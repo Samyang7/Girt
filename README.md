@@ -13,3 +13,5 @@ it can do:
 'girt-log' 
 
 'girt-status'
+
+'girt-rm'
