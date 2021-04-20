@@ -1,0 +1,160 @@
+#!/bin/dash
+
+commit_local_change() {
+    # when there is a commit command, it should first create a repo dir at the first time
+    repoDir=$(pwd)"/.girt/repo"
+    if ! test -d $repoDir
+    then
+        mkdir $repoDir
+    fi
+    
+
+    commitMessage="$1"
+    commitRecord=$(pwd)"/.girt/commit"
+    
+    # create a commit log file if there is no log file
+    # create a 'repoSubDir': commit0 to store the file during commit0
+    indexDir=$(pwd)"/.girt/index"
+    indexDirFiles=$(pwd)"/.girt/index/*"
+    if ! test -f $commitRecord
+    then
+        # if it is the first time we do commit, if there are no files in the index, return 1
+        IndexFileNum=$(ls $indexDir|wc -l|sed -e 's/^ *//')
+        if test $IndexFileNum -eq 0
+        then
+            echo "nothing to commit"
+            exit 1
+        fi
+        touch $commitRecord
+        repoSubDir=$repoDir"/commit0"
+        if ! test -d $repoSubDir
+        then
+            mkdir $repoSubDir
+        fi
+        # because it is the first time commit, we just need to copy every file from index to commit0
+        for indexDirFile in $indexDirFiles
+        do
+            fileName=$(echo $indexDirFile|sed -e 's/.*index\///')
+            repoSubDirFile=$repoSubDir"/"$fileName
+            cp $indexDirFile $repoSubDirFile
+        done
+        echo "0 $commitMessage" 1>> $commitRecord
+        echo "Committed as commit 0"
+    # create a 'repoSubDir': commit(Number), Number depend on the latest commit record i have
+    else
+        flag=0
+        number=$(cat $commitRecord|sort -k1,1nr|cut -d' ' -f1|head -1)
+        # we need to check the file between the index directory and last commit record directory
+        # if there is difference between them, then there is something to commit, flag set to 1
+        # if there is no file in the index dir and there are files in commit dir, flag set to 2
+        IndexFileNum=$(ls $indexDir|wc -l|sed -e 's/^ *//')
+        if test $IndexFileNum -eq 0
+        then
+            repoSubDir=$repoDir"/commit"$number
+            repoSubDirFileNum=$(ls $repoSubDir|wc -l|sed -e 's/^ *//')
+            if test $repoSubDirFileNum -ne 0
+            then
+                flag=2
+            fi
+        else
+            repoSubDir=$repoDir"/commit"$number
+            repoSubDirFileNum=$(ls $repoSubDir|wc -l|sed -e 's/^ *//')
+            if test $repoSubDirFileNum -ne $IndexFileNum
+            then
+                flag=1
+            else
+                for indexDirFile in $indexDirFiles
+                do
+                    fileName=$(echo $indexDirFile|sed -e 's/.*index\///')
+                    repoSubDirFile=$repoDir"/commit"$number"/"$fileName
+                    if ! test -f $repoSubDirFile
+                    then
+                        flag=1
+                    elif ! diff -w $indexDirFile $repoSubDirFile >/dev/null
+                    then
+                        flag=1
+                    fi
+                done
+            fi
+        fi
+
+        # create a new commit(Number) dir to store the new commit file
+        # copy the file from the index dir to this new dir
+        if test $flag -gt 0
+        then
+            number=$((number + 1))
+            repoSubDir=$repoDir"/commit"$number
+            if ! test -d $repoSubDir
+            then
+                mkdir $repoSubDir
+            fi
+            if test $flag -eq 1
+            then
+                for indexDirFile in $indexDirFiles
+                do
+                    fileName=$(echo $indexDirFile|sed -e 's/.*index\///')
+                    repoSubDirFile=$repoSubDir"/"$fileName
+                    cp $indexDirFile $repoSubDirFile
+                done
+            fi
+            echo "$number $commitMessage" 1>> $commitRecord
+            echo "Committed as commit $number"
+        else
+            echo "nothing to commit"
+        fi
+    fi
+    
+}
+
+# check the number of argument is right
+argNum=$#
+errorMessage="usage: girt-commit [-a] -m commit-message"
+if test $argNum -lt 2
+then
+    echo $errorMessage
+    exit 1
+fi
+
+# check the argumnet is right when there are 2 argument
+if test $argNum -eq 2
+then
+    if test $1 != "-m"
+    then
+        echo $errorMessage
+        exit 1
+    fi
+
+    commit_local_change "$2";
+
+# check the argument is right when there are 3 argument
+elif test $argNum -eq 3
+then
+    if test $1 != "-a" -o $2 != "-m"
+    then
+        echo $errorMessage
+        exit 1
+    fi
+
+    # add the file that is in the 'index' dir from current dir to the index dir
+    indexDirFile=$(pwd)"/.girt/index/*"
+    indexDir=$(pwd)"/.girt/index"
+
+    indexFileNum=$(ls $indexDir|wc -l|sed -e 's/^ *//')
+    if test $indexFileNum -ne 0
+    then
+        for file in $indexDirFile
+        do
+            newfile=$(echo $file|sed -e 's/.*index\///g')
+            if test -f $newfile
+            then
+                cp $newfile $indexDir
+            else
+                rm $file
+            fi
+        done
+    fi
+
+    commit_local_change "$2";
+fi
+
+

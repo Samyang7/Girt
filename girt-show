@@ -1,0 +1,83 @@
+#!/bin/dash
+
+if test $# -ne 1
+then
+    echo "usage: girt-show <commit>:<filename>"
+    exit 1
+elif test $# -eq 1
+then
+    # check the input argument has the ":"
+    line=$(echo "$1"|egrep ':')
+    if test "$line" = ""
+    then
+        echo "girt-show: error: invalid object $1"
+        exit 1
+    else
+        # check the commit number is valid
+        commitNum=$(echo "$1"|cut -d':' -f1)
+        if ! test "$commitNum" = ""
+        then
+            repoDir=$(pwd)"/.girt/repo/*"
+            flag=0
+            for subDir in $repoDir
+            do
+                subDirNum=$(echo $subDir|sed -e 's/.*\/commit//g')
+                if test $commitNum -eq $subDirNum
+                then
+                    flag=1
+                fi 
+            done
+            if test $flag -eq 0
+            then
+                echo "girt-show: error: unknown commit '$commitNum'"
+                exit 1
+            fi
+
+            fileName=$(echo "$1"|cut -d':' -f2)
+            if test "$fileName" = ""
+            then
+                echo "girt-show: error: invalid filename ''"
+                exit 1
+            fi
+            flagTwo=0
+            repoSubDir=$(pwd)"/.girt/repo/commit"$commitNum"/*"
+            for file in $repoSubDir
+            do
+                newfile=$(echo $file|sed 's/.*\/commit[0-9]*\///')
+                if test "$newfile" = "$fileName"
+                then
+                    cat $file
+                    flagTwo=1
+                fi
+            done
+            if test $flagTwo -eq 0
+            then
+                echo "girt-show: error: '$fileName' not found in commit $commitNum"
+                exit 1
+            fi
+        else
+            fileName=$(echo "$1"|cut -d':' -f2)
+            if test "$fileName" = ""
+            then
+                echo "girt-show: error: invalid filename ''"
+                exit 1
+            fi
+            flagTwo=0
+            indexDir=$(pwd)"/.girt/index/*"
+            for file in $indexDir
+            do
+                newfile=$(echo $file|sed 's/.*\/index\///')
+                if test $newfile = $fileName
+                then
+                    cat $file
+                    flagTwo=1
+                fi
+            done
+            if test $flagTwo -eq 0
+            then
+                echo "girt-show: error: '$fileName' not found in index"
+                exit 1
+            fi
+        fi
+    fi
+fi

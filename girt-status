@@ -1,0 +1,190 @@
+#!/bin/dash
+
+# check if there is a status file
+statusDir=$(pwd)"/.girt/status"
+if ! test -d "$statusDir"
+then
+    mkdir $statusDir;
+fi
+
+statusDirFileNum=$(ls $statusDir|wc -l|sed -e 's/^ *//')
+if test $statusDirFileNum -ne 0
+then
+    statusremove=$(pwd)"/.girt/status/*"
+    rm $statusremove
+fi
+
+# update the status file from the current dir
+currDirFileNum=$(ls |wc -l|sed -e 's/^ *//')
+if test $currDirFileNum -ne 0
+then
+    for file in *
+    do
+        statusFile=$statusDir"/"$file
+        cp $file $statusFile
+    done
+fi
+
+# update the status file from index dir
+indexDir=$(pwd)"/.girt/index"
+indexDirFileNum=$(ls $indexDir|wc -l|sed -e 's/^ *//')
+if test -d $indexDir
+then
+    if test $indexDirFileNum -ne 0
+    then
+        indexDirFile=$(pwd)"/.girt/index/*"
+        for file in $indexDirFile
+        do
+            fileName=$(echo $file|sed -e 's/.*index\///')
+            statusFile=$statusDir"/"$fileName
+            cp $file $statusFile
+        done
+    fi
+fi
+
+# update the status file from latest commit dir
+repoDir=$(pwd)"/.girt/repo"
+if test -d $repoDir
+then
+    commitRecord=$(pwd)"/.girt/commit"
+    if test -f $commitRecord
+    then
+        latestCN=$(cat $commitRecord|sort -k1,1nr|head -1|cut -d' ' -f1,1)
+        commitDir=$(pwd)"/.girt/repo/commit"$latestCN
+        commitDirFiles=$(pwd)"/.girt/repo/commit"$latestCN"/*"
+        commitDirNumFile=$(ls $commitDir|wc -l|sed -e 's/^ *//')
+        if test $commitDirNumFile -ne 0
+        then
+            for file in $commitDirFiles
+            do
+                fileName=$(echo $file|sed -e 's/.*commit[0-9]*\///')
+                statusFile=$statusDir"/"$fileName
+                cp $file $statusFile
+            done
+        fi
+    fi
+fi
+
+# print the status for each file, if there is no file in status Dir, do nothing
+statusDirFiles=$(pwd)"/.girt/status/*"
+statusDirFileNum=$(ls $statusDir|wc -l|sed -e 's/^ *//')
+if test $statusDirFileNum -ne 0
+then
+    # if the indexDir is not there, all files are untracked
+    if ! test -d $indexDir
+    then
+        for file in $statusDirFiles
+        do
+            filename=$(echo $file|sed -e 's/.*status\///')
+            echo "$filename - untracked"
+        done
+    else
+        for file in $statusDirFiles
+        do
+            # If the file not exists in the index Dir
+            # 1: if it exist in the current Dir, untracked (no matter if there is commit history) -> untracked
+            # 2: if it not exist in the current Dir -> deleted (because we have commit history so we can track it)
+            filename=$(echo $file|sed -e 's/.*status\///')
+            indexfile=$indexDir"/"$filename
+            if ! test -f $indexfile
+            then
+                if ! test -f $filename
+                then
+                    echo "$filename - deleted"
+                else
+                    echo "$filename - untracked"
+                fi
+            else
+                # if the current dir fir is missing
+                # 1: indexfile is same as commitfile -> delete
+                # 2: indexfile is not same as commitfile -> file deleted, different change stage for commit
+                # 3: no commitfile, no commitDir, no commitrecord -> file deleted, add to index
+                if ! test -f $filename
+                then
+                    if ! test -d $repoDir
+                    then
+                        echo "$filename - added to index, file deleted"
+                    elif test -d $repoDir
+                    then
+                        commitRecord=$(pwd)"/.girt/commit"
+                        if ! test -f $commitRecord 
+                        then
+                            echo "$filename - added to index, file deleted"
+                        else
+                            latestCN=$(cat $commitRecord|sort -k1,1nr|head -1|cut -d' ' -f1,1)
+                            commitDir=$(pwd)"/.girt/repo/commit"$latestCN
+                            commitfile=$commitDir"/"$filename
+                            if ! test -f $commitfile
+                            then
+                                echo "$filename - added to index, file deleted"
+                            elif diff $commitfile $indexfile >/dev/null    
+                            then
+                                echo "$filename - file deleted"
+                            elif ! diff $commitfile $indexfile >/dev/null   
+                            then
+                                echo "$filename - file deleted, different changes staged for commit"
+                            fi
+                        fi
+                    fi
+                else
+                    # if current Dir and index Dir both has file
+                    # different situation for having either has commit history or not
+                    # no commit history
+                    # 1: currentdir file and indexdir file are same -> added to index
+                    # 2: different -> added to the index, file changed
+                    # have commit history
+                    if ! test -d $repoDir
+                    then
+                        if diff $indexfile $filename >/dev/null
+                        then
+                            echo "$filename - added to index"
+                        else 
+                            echo "$filename - added to index, file changed"
+                        fi
+                    elif test -d $repoDir
+                    then
+                        commitRecord=$(pwd)"/.girt/commit"
+                        if ! test -f $commitRecord 
+                        then
+                            if diff $indexfile $filename >/dev/null
+                            then
+                                echo "$filename - added to index"
+                            else 
+                                echo "$filename - added to index, file changed"
+                            fi
+                        else
+                            latestCN=$(cat $commitRecord|sort -k1,1nr|head -1|cut -d' ' -f1,1)
+                            commitDir=$(pwd)"/.girt/repo/commit"$latestCN
+                            commitfile=$commitDir"/"$filename
+                            if ! test -f $commitfile
+                            then
+                                if diff $indexfile $filename >/dev/null
+                                then
+                                    echo "$filename - added to index"
+                                else 
+                                    echo "$filename - added to index, file changed"
+                                fi
+                            else
+                                if diff $indexfile $filename >/dev/null && diff $indexfile $commitfile >/dev/null
+                                then
+                                    echo "$filename - same as repo"
+                                elif diff $indexfile $filename >/dev/null && ! diff $indexfile $commitfile >/dev/null
+                                then
+                                    echo "$filename - file changed, changes staged for commit"
+                                elif ! diff $indexfile $filename >/dev/null && ! diff $indexfile $commitfile >/dev/null
+                                then
+                                    echo "$filename - file changed, different changes staged for commit"
+                                elif ! diff $indexfile $filename >/dev/null && diff $indexfile $commitfile >/dev/null
+                                then    
+                                    echo "$filename - file changed, changes not staged for commit"
+                                fi
+                            fi
+                        fi
+                    fi
+                fi
+            fi
+        done
+    fi
+
+fi
+

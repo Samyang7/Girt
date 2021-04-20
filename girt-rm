@@ -1,0 +1,384 @@
+#!/bin/dash
+
+# if the number of argument is less than 1, report error
+argNum=$#
+if test $argNum -lt 1
+then
+    echo "usage: girt-rm [--force] [--cached] <filenames>"
+    exit 1
+fi
+
+# check if the file is in the index dir
+check_file_index() {
+    # check if there isn't a indexfolder, exit 1
+    deleteFile=$1
+    indexDir=$(pwd)"/.girt/index"
+    indexDirFile=$(pwd)"/.girt/index/*"
+    if ! test -d $indexDir
+    then
+        echo "girt-rm: error: '$deleteFile' is not in the girt repository"
+        exit 1
+    fi
+    
+    # check if the file isn't in the indexDir, exit 1
+    flag=0
+    indexDirFileNum=$(ls $indexDir|wc -l|sed -e 's/^ *//')
+    if test $indexDirFileNum -ne 0
+    then
+        for file in $indexDirFile
+        do
+            newfile=$(echo $file|sed -e 's/.*index\///g')
+            if test $newfile = $deleteFile
+            then    
+                flag=1
+            fi
+        done
+    fi
+
+    if test $flag -eq 0
+    then
+        echo "girt-rm: error: '$deleteFile' is not in the girt repository"
+        exit 1
+    fi
+}
+
+# may need to modify, function to due with the argument --cached
+check_file_cachonly() {
+    deleteFile=$1
+    commitRecord=$(pwd)"/.girt/commit"
+    latestCN=$(cat $commitRecord|sort -k1,1nr|head -1|cut -d' ' -f1,1)
+    commitDir=$(pwd)"/.girt/repo/commit"$latestCN
+    commitDirFiles=$(pwd)"/.girt/repo/commit"$latestCN"/*"
+    commitDirNumFile=$(ls $commitDir|wc -l|sed -e 's/^ *//')
+    
+    if test -f $deleteFile
+    then
+        commitDirDeleteFile=$(pwd)"/.girt/repo/commit"$latestCN"/$deleteFile"
+        indexfile=$(pwd)"/.girt/index/"$deleteFile
+        if ! diff $indexfile $deleteFile 1>/dev/null
+        then
+            if test $commitDirNumFile -eq 0
+            then
+                echo "girt-rm: error: '$deleteFile' in index is different to both to the working file and the repository"
+                exit 1
+            else 
+                if ! test -f $commitDirDeleteFile
+                then
+                    echo "girt-rm: error: '$deleteFile' in index is different to both to the working file and the repository"
+                    exit 1
+                fi
+                if ! diff $indexfile $commitDirDeleteFile 1>/dev/null
+                then
+                    echo "girt-rm: error: '$deleteFile' in index is different to both to the working file and the repository"
+                    exit 1
+                fi  
+            fi  
+        fi
+    fi
+}
+
+check_file_commit() {
+    deleteFile=$1
+    if test -f $deleteFile
+    then
+        # check if file is in the latest commit file
+        # if there is no repo folder, different situation for changed and not changed original file
+        repoDir=$(pwd)"/.girt/repo"
+        if ! test -d $repoDir
+        then
+            indexfile=$(pwd)"/.girt/index/"$deleteFile
+            if diff $indexfile $deleteFile 1>/dev/null
+            then
+                echo "girt-rm: error: '$deleteFile' has staged changes in the index"
+            else
+                echo "girt-rm: error: '$deleteFile' in index is different to both to the working file and the repository"
+            fi
+            exit 1
+        else 
+            commitRecord=$(pwd)"/.girt/commit"
+            latestCN=$(cat $commitRecord|sort -k1,1nr|head -1|cut -d' ' -f1,1)
+            commitDirFiles=$(pwd)"/.girt/repo/commit"$latestCN"/*"
+            commitDir=$(pwd)"/.girt/repo/commit"$latestCN
+            commitDirNumFile=$(ls $commitDir|wc -l|sed -e 's/^ *//')
+
+            flag=0
+            if test $commitDirNumFile -ne 0
+            then
+                for file in $commitDirFiles
+                do
+                    newfile=$(echo $file|sed -e 's/.*commit[0-9]*\///')
+                    if test $newfile = $deleteFile
+                    then
+                        flag=1
+                    fi 
+                done
+            fi
+
+            # if the file in the index is not in the latest commit file, same dealing
+            if test $flag -eq 0
+            then
+                indexfile=$(pwd)"/.girt/index/"$deleteFile
+                if diff $indexfile $deleteFile 1>/dev/null
+                then
+                    echo "girt-rm: error: '$deleteFile' has staged changes in the index"
+                else
+                    echo "girt-rm: error: '$deleteFile' in index is different to both to the working file and the repository"
+                fi
+                exit 1
+            # if the file is in the commit but is modifed after commit
+            # if the working dir file is different with commit file and same as index file
+            # if the working dir file is different with commit file and also different with index file
+            elif test $flag -eq 1
+            then
+                commitDirDeleteFile=$(pwd)"/.girt/repo/commit"$latestCN"/$deleteFile"
+                indexfile=$(pwd)"/.girt/index/"$deleteFile
+                if diff $indexfile $deleteFile 1>/dev/null
+                then
+                    if ! diff $indexfile $commitDirDeleteFile 1>/dev/null
+                    then
+                        echo "girt-rm: error: '$deleteFile' has staged changes in the index"
+                        exit 1
+                    fi
+                else
+                    if diff $indexfile $commitDirDeleteFile 1>/dev/null
+                    then
+                        echo "girt-rm: error: '$deleteFile' in the repository is different to the working file"
+                    else 
+                        echo "girt-rm: error: '$deleteFile' in index is different to both to the working file and the repository"
+                    fi
+                    exit 1
+                fi
+            fi
+        fi
+    fi
+}
+
+# different number of argument 
+if test $argNum -eq 1
+then
+    # if the argument is start from '-', it is not right
+    argone=$1
+    firstChar=$(echo $argone|cut -c1)
+    if test $firstChar = '-'
+    then
+        echo "usage: girt-rm [--force] [--cached] <filenames>"
+        exit 1
+    fi
+
+    deleteFile=$1
+    check_file_index "$1"    
+    check_file_commit "$1"
+
+    indexDir=$(pwd)"/.girt/index"
+    if ! test -f $deleteFile
+    then 
+        rm $indexDir"/$deleteFile"
+    else
+        rm $indexDir"/$deleteFile"
+        rm "$deleteFile"
+    fi
+elif test $argNum -eq 2
+then
+    argone=$1
+    argtwo=$2
+    firstArgChar=$(echo $argone|cut -c1)
+    secondArgChar=$(echo $argtwo|cut -c1)
+    # if both of the argument start with '-', is it not right
+    if test $firstArgChar = '-' -a $secondArgChar = '-'
+    then
+        echo "usage: girt-rm [--force] [--cached] <filenames>"
+        exit 1
+    fi
+    
+    mode=0
+    # if the first argument is not either --force and --cached
+    if test $firstArgChar = '-' -a $secondArgChar != '-'
+    then
+        if test $argone != "--force" -a $argone != '--cached'
+        then
+            echo "usage: girt-rm [--force] [--cached] <filenames>"
+            exit 1
+        elif test $argone = '--force'
+        then
+            mode=1
+        elif test $argone = '--cached'
+        then
+            mode=2
+        fi
+    fi
+
+    if test $mode -eq 1
+    then
+        check_file_index $2
+        indexDir=$(pwd)"/.girt/index"
+        if ! test -f $argtwo
+        then
+            rm $indexDir"/$argtwo"
+        else
+            rm $indexDir"/$argtwo"
+            rm $argtwo
+        fi
+    elif test $mode -eq 2
+    then
+
+        check_file_index $2
+        check_file_cachonly $2
+        indexDir=$(pwd)"/.girt/index"
+        rm $indexDir"/$argtwo"
+    elif test $mode -eq 0
+    then
+        for file in $*
+        do
+            deleteFile=$file
+            check_file_index $deleteFile
+            check_file_commit $deleteFile 
+        done
+        
+        for file in $*
+        do
+            indexDir=$(pwd)"/.girt/index"
+            if ! test -f $file
+            then 
+                rm $indexDir"/$file"
+            else
+                rm $indexDir"/$file"
+                rm "$file"
+            fi
+        done
+    fi
+
+elif test $argNum -ge 3
+then
+    argone=$1
+    argtwo=$2
+    firstArgChar=$(echo $argone|cut -c1)
+    secondArgChar=$(echo $argtwo|cut -c1)
+    # if the first and second are start with '-' but not force and cached
+    if test $firstArgChar = '-' -a $secondArgChar = '-'
+    then
+        if test $argone != '--force' -a $argtwo != '--cached'
+        then
+            echo "usage: girt-rm [--force] [--cached] <filenames>"
+            exit 1
+        fi
+    fi
+
+    mode=0
+    # if the first argument is not either --force and --cached
+    if test $firstArgChar = '-' -a $secondArgChar != '-'
+    then
+        if test $argone != "--force" -a $argone != '--cached'
+        then
+            echo "usage: girt-rm [--force] [--cached] <filenames>"
+            exit 1
+        elif test $argone = "--force" -a $secondArgChar != '-'
+        then
+            mode=1
+        elif test $argone = "--cached" -a $secondArgChar != '-'
+        then
+            mode=2
+        fi
+    elif test $argone = "--force" -a $argtwo = "--cached"
+    then
+        mode=3
+    fi
+
+    if test $mode -eq 0
+    then
+        for file in $*
+        do
+            deleteFile=$file
+            check_file_index $deleteFile
+            check_file_commit $deleteFile
+        done
+
+        for file in $*
+        do
+            indexDir=$(pwd)"/.girt/index"
+            if ! test -f $file
+            then 
+                rm $indexDir"/$file"
+            else
+                rm $indexDir"/$file"
+                rm "$file"
+            fi
+        done
+    elif test $mode -eq 1
+    then
+        for file in $*
+        do
+            deleteFile=$file
+            if test $deleteFile = "--force"
+            then
+                continue
+            else
+                check_file_index $deleteFile
+            fi
+        done
+
+        indexDir=$(pwd)"/.girt/index"
+        for file in $*
+        do
+            if test $file = "--force"
+            then
+                continue
+            else
+                if ! test -f $file
+                then
+                    rm $indexDir"/$file"
+                else
+                    rm $indexDir"/$file"
+                    rm $file
+                fi
+            fi
+        done
+    elif test $mode -eq 2
+    then
+        for file in $*
+        do
+            deleteFile=$file
+            if test $deleteFile = "--cached"
+            then
+                continue
+            else
+                check_file_index $deleteFile
+                check_file_cachonly $deleteFile
+            fi
+        done  
+
+        indexDir=$(pwd)"/.girt/index"
+        for file in $*
+        do
+            if test $file = "--cached"
+            then
+                continue
+            else
+                rm $indexDir"/$file"
+            fi
+        done  
+    elif test $mode -eq 3
+    then
+        for file in $*
+        do
+            deleteFile=$file
+            if test $deleteFile = "--force" -o $deleteFile = "--cached"
+            then
+                continue
+            else
+                check_file_index $deleteFile
+            fi
+        done
+
+        indexDir=$(pwd)"/.girt/index"
+        for file in $*
+        do
+            if test $file = "--force" -o $file = "--cached"
+            then
+                continue
+            else
+                rm $indexDir"/$file"
+            fi
+        done
+    fi 
+fi
+

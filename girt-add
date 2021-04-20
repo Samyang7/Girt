@@ -1,0 +1,56 @@
+#!/bin/dash
+
+# check the number of argument is correct
+argNum=$#
+if test $argNum -lt 1
+then
+    echo "usage: girt-add <filenames>"
+    exit 1
+fi
+
+# check the ".girt" is in the current directory
+dir=".girt"
+if ! test -d $dir
+then
+    echo "girt-add: error: girt repository directory $dir not found"
+    exit 1
+fi
+
+# create the "index" directory if there isn't one
+dirName="/index"
+destDir=$(pwd)"/"$dir$dirName
+if ! test -d $destDir
+then
+    mkdir $destDir
+fi
+
+
+# check the "file" in the argument
+# if not in the current dir and also not in the index dir, then exit
+for file in $*
+do
+    if ! test -f $file
+    then
+        destDirFile=$destDir"/"$file
+        if ! test -f $destDirFile
+        then
+            echo "girt-add: error: can not open '$file'"
+            exit 1
+        fi 
+    fi
+done
+
+
+# if the file in in the current dir, copy it to the index dir
+# if the file is in the index dir but not in the current dir, remove the file in the index dir
+for file in $*
+do  
+    if test -f $file
+    then
+        cp $file $destDir
+    else
+        destDirFile=$destDir"/"$file 
+        rm $destDirFile
+    fi
+done
+

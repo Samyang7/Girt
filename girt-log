@@ -1,0 +1,13 @@
+#!/bin/dash
+
+if test $# -ne 0
+then
+    echo "usage: girt-log"
+    exit 1
+fi
+
+commitRecord=$(pwd)"/.girt/commit"
+if test -f $commitRecord
+then
+    cat $commitRecord|sort -k1,1nr
+fi

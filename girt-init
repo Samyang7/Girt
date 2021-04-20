@@ -1,0 +1,12 @@
+#!/bin/dash
+
+dirName=".girt"
+if test -d "$dirName"
+then
+    echo "girt-init: error: $dirName already exists"
+    exit 1
+else
+    mkdir $dirName
+    echo "Initialized empty girt repository in $dirName"
+fi
+
