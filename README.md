@@ -14,10 +14,10 @@ The girt-commit command saves a copy of all files in the index to the repository
 ## girt-log 
 The girt-log command prints a line for every commit made to the repository: each line contain the commit number, and the commit message.
 
-## girt-show[commit]:filename
+## girt-show [commit]:filename
 The girt-show print the contents of the specified filename as of the specified commit. If commit is omitted, the contents of the file in the index will be printed.
 
 ## girt-commit [-a] -m message
 girt-commit have a -a option, which causes all files already in the index to have their contents from the current directory added to the index before the commit.
 
-## girt-rm
+## girt-rm [--force] [--cached] filenames
