@@ -26,5 +26,11 @@ girt-rm removes a file from the index, or from the current directory and the ind
 ## girt-status
 girt-status shows the status of files in the current directory, the index, and the repository.
 
+# Language
+POSIX-compatible shell
+
+# How to run
+clone all files to the locl computer and run with dash
+
 
 
