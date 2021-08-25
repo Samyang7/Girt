@@ -32,5 +32,10 @@ POSIX-compatible shell
 # How to run
 clone all files to the locl computer and run with dash
 
+# Example executation
+<img width="379" alt="Screen Shot 2021-08-25 at 20 49 00" src="https://user-images.githubusercontent.com/58925650/130777658-3002fb30-5619-48a9-85a5-18403cf2615b.png">
+<img width="391" alt="Screen Shot 2021-08-25 at 20 47 26" src="https://user-images.githubusercontent.com/58925650/130777670-8f6b3934-a07d-4c9f-b0c0-777e8067fa47.png">
+
+
 
 
