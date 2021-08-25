@@ -20,4 +20,11 @@ The girt-show print the contents of the specified filename as of the specified c
 ## girt-commit [-a] -m message
 girt-commit have a -a option, which causes all files already in the index to have their contents from the current directory added to the index before the commit.
 
-## girt-rm [--force] [--cached] filenames
+## girt-rm [--force] [--cached] filenames ...
+girt-rm removes a file from the index, or from the current directory and the index. If the --cached option is specified, the file is removed only from the index, and not from the current directory. girt-rm, like git rm, stop the user accidentally losing work, and give an error message instead if the removal would cause the user to lose work. The --force option overrides this, and carry out the removal even if the user will lose work.
+
+## girt-status
+girt-status shows the status of files in the current directory, the index, and the repository.
+
+
+
